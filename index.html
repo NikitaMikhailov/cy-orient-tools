@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orienteering Tools — IOF XML 3.0 Converter</title>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --surface: #ffffff;
+      --border: #d1d1d6;
+      --text: #1d1d1f;
+      --muted: #6e6e73;
+      --blue: #0071e3;
+      --green: #34c759;
+      --orange: #f59e0b;
+      --orange-bg: #fffbeb;
+      --r: 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .logo { font-size: 24px; }
+    header h1 { font-size: 17px; font-weight: 700; }
+    header p  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Layout ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    /* ── Steps ── */
+    .steps {
+      display: flex;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .step {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      border-right: 1px solid var(--border);
+      transition: background .2s;
+    }
+    .step:last-child { border-right: none; }
+    .step.active  { color: var(--blue);  background: #f0f7ff; }
+    .step.done    { color: var(--green); background: #f0fdf4; }
+    .step__num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--border);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background .2s;
+    }
+    .step.active .step__num { background: var(--blue); }
+    .step.done   .step__num { background: var(--green); }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card__title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+
+    /* ── Hint box ── */
+    .hint {
+      background: #f0f7ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #1e3a5f;
+      margin-bottom: 14px;
+      line-height: 1.7;
+    }
+    .hint code {
+      background: rgba(0,0,0,.06);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-family: monospace;
+    }
+
+    /* ── Form ── */
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: monospace;
+      font-size: 12px;
+      outline: none;
+      resize: vertical;
+      transition: border-color .15s;
+      color: var(--text);
+    }
+    textarea:focus { border-color: var(--blue); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:hover   { opacity: .85; }
+    .btn:active  { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: default; pointer-events: none; }
+    .btn-primary { background: var(--blue);  color: #fff; }
+    .btn-green   { background: var(--green); color: #fff; font-weight: 600; }
+    .btn-ghost   { background: #e8e8ed; color: var(--text); }
+    .btn-sm      { padding: 4px 10px; font-size: 12px; border-radius: 5px; }
+
+    /* ── Stats bar ── */
+    .stats {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      align-items: center; margin-bottom: 14px;
+    }
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-a    { background: #d1fae5; color: #065f46; }
+    .badge-b    { background: #dbeafe; color: #1e40af; }
+    .badge-c    { background: #fef3c7; color: #92400e; }
+    .badge-warn { background: #fee2e2; color: #991b1b; }
+    .total      { color: var(--muted); font-size: 13px; }
+
+    /* ── Warnings panel ── */
+    .warnings {
+      background: var(--orange-bg);
+      border: 1px solid #fcd34d;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+    .warnings strong { color: #92400e; display: block; margin-bottom: 8px; }
+    .warn-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 3px 16px;
+    }
+    .warn-item { font-size: 12px; color: #78350f; }
+    .warn-item code { font-family: monospace; font-weight: 700; }
+
+    /* ── Table ── */
+    .table-wrap {
+      border-radius: 0 0 var(--r) var(--r);
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 12px;
+    }
+    thead th {
+      padding: 9px 10px;
+      background: #f5f5f7;
+      border-bottom: 2px solid var(--border);
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid #f0f0f0;
+      transition: background .1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    tbody tr.row-warn { background: var(--orange-bg) !important; }
+    tbody td { padding: 5px 8px; vertical-align: middle; }
+
+    .id-cell { font-family: monospace; font-weight: 700; color: var(--blue); white-space: nowrap; }
+    .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+
+    .fi {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 12px;
+      font-family: inherit;
+      background: #fff;
+      outline: none;
+      width: 100%;
+      transition: border-color .15s;
+    }
+    .fi:focus { border-color: var(--blue); }
+    .fi.warn  { border-color: var(--orange); background: var(--orange-bg); }
+
+    select.fi { cursor: pointer; }
+
+    /* ── Actions ── */
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+
+    /* ── XML preview ── */
+    .xml-preview {
+      background: #1c1c1e;
+      color: #a8ff78;
+      border-radius: 10px;
+      padding: 16px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 11px;
+      overflow: auto;
+      white-space: pre;
+      max-height: 420px;
+      margin-top: 14px;
+      border: 1px solid #333;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🗺</div>
+  <div>
+    <h1>Orienteering Tools</h1>
+    <p>Конвертер регистрационных таблиц → IOF XML 3.0 &nbsp;·&nbsp; SPORTident Center</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── Steps ── -->
+  <div class="steps">
+    <div class="step active" id="step-1"><span class="step__num">1</span>Вставить таблицу</div>
+    <div class="step"        id="step-2"><span class="step__num">2</span>Проверить данные</div>
+    <div class="step"        id="step-3"><span class="step__num">3</span>Скачать XML</div>
+  </div>
+
+  <!-- ── Stage 1: Input ── -->
+  <div id="stage-input">
+    <div class="hint">
+      Открой Excel, выдели всё (<code>Ctrl+A</code>), скопируй (<code>Ctrl+C</code>) и вставь ниже.<br>
+      Ожидаемые колонки: <code>FULL NAME</code> · <code>OUR SI CARD</code> · <code>OWN SI CARD</code> · <code>AGE</code> · <code>YEAR</code> · <code>Club</code> · <code>COURSE</code>
+    </div>
+    <div class="card">
+      <div class="card__title">Данные из Excel</div>
+      <textarea id="raw" rows="13"
+        placeholder="Вставь сюда содержимое таблицы (Ctrl+V)…&#10;&#10;Пример строки:&#10;1	€6.00	Ivan Petrov	2231209		ivan@mail.ru	99001122	M35	1989	Pyxida		A Course	2231209"></textarea>
+      <div class="actions">
+        <button class="btn btn-primary" id="btn-parse" disabled>Разобрать →</button>
+        <span id="parse-count" style="color:var(--muted);font-size:13px"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Stage 2+3: Review ── -->
+  <div id="stage-review" style="display:none">
+
+    <div class="stats" id="stats"></div>
+
+    <div class="warnings" id="warn-block" style="display:none">
+      <strong>⚠️ Требует внимания:</strong>
+      <div class="warn-grid" id="warn-list"></div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+        <span style="font-weight:600">Список участников</span>
+        <button class="btn btn-ghost btn-sm" id="btn-back">← Новая таблица</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:80px">ID</th>
+              <th style="width:52px">Пол</th>
+              <th style="width:140px">Имя (Given)</th>
+              <th style="width:140px">Фамилия (Family)</th>
+              <th style="width:36px">⇄</th>
+              <th style="width:56px">Год</th>
+              <th style="width:96px">SI карточка</th>
+              <th style="width:110px">Клуб</th>
+              <th style="width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-green" id="btn-dl">⬇ Скачать IOF XML 3.0</button>
+      <button class="btn btn-ghost" id="btn-copy">📋 Копировать XML</button>
+      <button class="btn btn-ghost" id="btn-preview-toggle">Показать XML</button>
+    </div>
+    <pre class="xml-preview" id="xml-preview" style="display:none"></pre>
+
+  </div>
+</div>
+
+<footer>Orienteering Cyprus &nbsp;·&nbsp; IOF XML 3.0 CompetitorList</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// Constants — avoid string literals for XML tag names
+// ═══════════════════════════════════════════════════════════════
+const TAG = {
+  CompetitorList : 'CompetitorList',
+  Competitor     : 'Competitor',
+  Person         : 'Person',
+  Id             : 'Id',
+  Name           : 'Name',
+  Family         : 'Family',
+  Given          : 'Given',
+  BirthDate      : 'BirthDate',
+  Organisation   : 'Organisation',
+  ControlCard    : 'ControlCard',
+};
+
+const COURSE_DOT   = { A:'#34c759', B:'#0071e3', C:'#f59e0b' };
+const COURSE_BADGE = { A:'badge-a', B:'badge-b', C:'badge-c' };
+const COL = { NAME:2, OUR_SI:3, OWN_SI:4, AGE:7, YEAR:8, CLUB:9, COURSE:11 };
+
+// ═══════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════
+let rows = [];
+
+// ═══════════════════════════════════════════════════════════════
+// Parse
+// ═══════════════════════════════════════════════════════════════
+function parse(text) {
+  const lines = text.split('\n');
+  const result = [];
+  const counters = {};
+
+  for (const line of lines) {
+    const cells = line.split('\t');
+    if (cells.length < 12) continue;
+    const name   = (cells[COL.NAME]   || '').trim();
+    const course = (cells[COL.COURSE] || '').trim();
+    if (!name || name === 'FULL NAME')       continue;
+    if (!course || !course.includes('Course')) continue;
+
+    const letter = course.replace(' Course', '').trim();
+    counters[letter] = (counters[letter] || 0) + 1;
+    const id = letter + '-' + String(counters[letter]).padStart(3, '0');
+
+    const siCard = (cells[COL.OUR_SI] || '').trim() || (cells[COL.OWN_SI] || '').trim();
+    const ageStr = (cells[COL.AGE]  || '').trim();
+    const sex    = (ageStr.split(/[+/]/)[0] || '').startsWith('W') ? 'F' : 'M';
+    const year   = (cells[COL.YEAR] || '').trim();
+    const clubRaw = (cells[COL.CLUB] || '').trim();
+    const org    = clubRaw && clubRaw !== 'N/A' ? clubRaw : '';
+
+    const parts  = name.split(/\s+/);
+    const family = parts.length > 1 ? parts[parts.length - 1] : '';
+    const given  = parts.length > 1 ? parts.slice(0, -1).join(' ') : parts[0];
+
+    result.push({ id, course: letter, given, family, sex, year, siCard, org });
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Warnings
+// ═══════════════════════════════════════════════════════════════
+function getWarnings(list) {
+  const out = [];
+  const seen = {};
+  for (const c of list) {
+    if (!c.siCard)  out.push({ id: c.id, msg: 'Нет SI карточки' });
+    if (!c.family)  out.push({ id: c.id, msg: 'Одно слово — проверь Given/Family' });
+    if (!c.year)    out.push({ id: c.id, msg: 'Нет года рождения' });
+    if (c.siCard) {
+      if (seen[c.siCard]) out.push({ id: c.id, msg: 'Дублирующийся SI ' + c.siCard + ' (также: ' + seen[c.siCard] + ')' });
+      else seen[c.siCard] = c.id;
+    }
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// XML Builder — uses TAG constants, no bare string tag names
+// ═══════════════════════════════════════════════════════════════
+function buildXML(list) {
+  function esc(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function o(tag, attrs) { return attrs ? '<' + tag + ' ' + attrs + '>' : '<' + tag + '>'; }
+  function c(tag)        { return '</' + tag + '>'; }
+  function el(tag, txt, attrs) { return o(tag, attrs) + txt + c(tag); }
+
+  const date = new Date().toISOString().slice(0, 10);
+
+  const entries = list.map(r => {
+    const ln = [];
+    ln.push('  ' + o(TAG.Competitor));
+    ln.push('    ' + o(TAG.Person, 'sex="' + r.sex + '"'));
+    ln.push('      ' + el(TAG.Id, esc(r.id), 'type="custom"'));
+    ln.push('      ' + o(TAG.Name));
+    ln.push('        ' + el(TAG.Family, esc(r.family)));
+    ln.push('        ' + el(TAG.Given,  esc(r.given)));
+    ln.push('      ' + c(TAG.Name));
+    if (r.year) ln.push('      ' + el(TAG.BirthDate, esc(r.year) + '-01-01'));
+    ln.push('    ' + c(TAG.Person));
+    if (r.org) {
+      ln.push('    ' + o(TAG.Organisation));
+      ln.push('      ' + el(TAG.Name, esc(r.org)));
+      ln.push('    ' + c(TAG.Organisation));
+    }
+    if (r.siCard) ln.push('    ' + el(TAG.ControlCard, esc(r.siCard), 'punchingSystem="SI"'));
+    ln.push('  ' + c(TAG.Competitor));
+    return ln.join('\n');
+  });
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    o(TAG.CompetitorList,
+      'xmlns="http://www.orienteering.org/datastandard/3.0"\n' +
+      '                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n' +
+      '                iofVersion="3.0"\n' +
+      '                createTime="' + date + 'T00:00:00"\n' +
+      '                creator="Cyprus Orienteering"'),
+    '',
+    entries.join('\n\n'),
+    '',
+    c(TAG.CompetitorList),
+  ].join('\n');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Render
+// ═══════════════════════════════════════════════════════════════
+function h(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step-' + i);
+    el.className = 'step' + (i === n ? ' active' : i < n ? ' done' : '');
+  });
+}
+
+function renderStats() {
+  const warns = getWarnings(rows);
+  const courses = [...new Set(rows.map(r => r.course))].sort();
+  const statsEl = document.getElementById('stats');
+  statsEl.innerHTML =
+    courses.map(ltr =>
+      `<span class="badge ${COURSE_BADGE[ltr] || ''}">${ltr} Course: ${rows.filter(r=>r.course===ltr).length}</span>`
+    ).join('') +
+    `<span class="total">Итого: <strong>${rows.length}</strong></span>` +
+    (warns.length ? `<span class="badge badge-warn">⚠ ${warns.length} предупреждений</span>` : '');
+}
+
+function renderWarnings() {
+  const warns = getWarnings(rows);
+  const block = document.getElementById('warn-block');
+  const list  = document.getElementById('warn-list');
+  if (!warns.length) { block.style.display = 'none'; return; }
+  block.style.display = '';
+  list.innerHTML = warns.map(w =>
+    `<div class="warn-item"><code>${w.id}</code>: ${h(w.msg)}</div>`
+  ).join('');
+}
+
+function renderTable() {
+  const warns   = getWarnings(rows);
+  const warnIds = new Set(warns.map(w => w.id));
+  const tbody   = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    if (warnIds.has(r.id)) tr.classList.add('row-warn');
+
+    const rowWarns = warns.filter(w => w.id === r.id).map(w => w.msg).join('\n');
+    const dot  = `<span class="dot" style="background:${COURSE_DOT[r.course]||'#ccc'}"></span>`;
+    const warn = warnIds.has(r.id)
+      ? `<span title="${h(rowWarns)}" style="cursor:help;font-size:15px">⚠️</span>`
+      : '';
+
+    tr.innerHTML = `
+      <td class="id-cell">${dot}${r.id}</td>
+      <td>
+        <select class="fi" data-id="${r.id}" data-f="sex">
+          <option${r.sex==='M'?' selected':''}>M</option>
+          <option${r.sex==='F'?' selected':''}>F</option>
+        </select>
+      </td>
+      <td><input class="fi${!r.given?' warn':''}" data-id="${r.id}" data-f="given"  value="${h(r.given)}"  style="min-width:120px;width:100%"></td>
+      <td><input class="fi${!r.family?' warn':''}" data-id="${r.id}" data-f="family" value="${h(r.family)}" style="min-width:120px;width:100%"></td>
+      <td><button class="btn btn-ghost btn-sm" data-swap="${r.id}" title="Поменять имя ↔ фамилию">⇄</button></td>
+      <td><input class="fi${!r.year?' warn':''}" data-id="${r.id}" data-f="year"   value="${h(r.year)}"   style="width:50px"></td>
+      <td><input class="fi${!r.siCard?' warn':''}" data-id="${r.id}" data-f="siCard" value="${h(r.siCard)}" style="width:86px"></td>
+      <td><input class="fi"                          data-id="${r.id}" data-f="org"    value="${h(r.org)}"    style="width:100px"></td>
+      <td style="text-align:center">${warn}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function rerender() { renderStats(); renderWarnings(); renderTable(); }
+
+// ═══════════════════════════════════════════════════════════════
+// Events
+// ═══════════════════════════════════════════════════════════════
+const rawEl      = document.getElementById('raw');
+const btnParse   = document.getElementById('btn-parse');
+const countEl    = document.getElementById('parse-count');
+const btnCopy    = document.getElementById('btn-copy');
+const previewEl  = document.getElementById('xml-preview');
+const btnPreview = document.getElementById('btn-preview-toggle');
+
+function updateCount() {
+  const n = rawEl.value.trim().split('\n').filter(Boolean).length;
+  btnParse.disabled = n < 2;
+  countEl.textContent = n > 1 ? n + ' строк' : '';
+}
+rawEl.addEventListener('input', updateCount);
+rawEl.addEventListener('paste', () => setTimeout(updateCount, 30));
+
+btnParse.addEventListener('click', () => {
+  rows = parse(rawEl.value);
+  if (!rows.length) {
+    alert('Данные не распознаны.\nУбедитесь, что таблица скопирована целиком из Excel (с заголовками).');
+    return;
+  }
+  document.getElementById('stage-input').style.display  = 'none';
+  document.getElementById('stage-review').style.display = '';
+  previewEl.style.display = 'none';
+  btnPreview.textContent  = 'Показать XML';
+  setStep(2);
+  rerender();
+});
+
+document.getElementById('btn-back').addEventListener('click', () => {
+  document.getElementById('stage-input').style.display  = '';
+  document.getElementById('stage-review').style.display = 'none';
+  setStep(1);
+});
+
+// Table: delegated change + input events
+document.getElementById('tbody').addEventListener('change', e => {
+  const id = e.target.dataset.id, f = e.target.dataset.f;
+  if (!id || !f) return;
+  const r = rows.find(x => x.id === id);
+  if (r) { r[f] = e.target.value; rerender(); }
+});
+document.getElementById('tbody').addEventListener('input', e => {
+  const id = e.target.dataset.id, f = e.target.dataset.f;
+  if (!id || !f || e.target.tagName !== 'INPUT') return;
+  const r = rows.find(x => x.id === id);
+  if (r) r[f] = e.target.value;
+  renderStats(); renderWarnings();   // don't re-render table (focus loss)
+});
+document.getElementById('tbody').addEventListener('click', e => {
+  const btn = e.target.closest('[data-swap]');
+  if (!btn) return;
+  const r = rows.find(x => x.id === btn.dataset.swap);
+  if (r) { [r.given, r.family] = [r.family, r.given]; rerender(); }
+});
+
+// Download
+document.getElementById('btn-dl').addEventListener('click', () => {
+  const xml  = buildXML(rows);
+  const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'competitors_' + new Date().toISOString().slice(0,10) + '.xml' });
+  a.click();
+  URL.revokeObjectURL(url);
+  setStep(3);
+});
+
+// Copy
+btnCopy.addEventListener('click', () => {
+  navigator.clipboard.writeText(buildXML(rows)).then(() => {
+    btnCopy.textContent = '✓ Скопировано!';
+    setTimeout(() => { btnCopy.innerHTML = '📋 Копировать XML'; }, 2000);
+  });
+});
+
+// Preview toggle
+btnPreview.addEventListener('click', () => {
+  const show = previewEl.style.display === 'none';
+  if (show) {
+    previewEl.textContent   = buildXML(rows);
+    previewEl.style.display = '';
+    btnPreview.textContent  = 'Скрыть XML';
+  } else {
+    previewEl.style.display = 'none';
+    btnPreview.textContent  = 'Показать XML';
+  }
+});
+</script>
+</body>
+</html>
